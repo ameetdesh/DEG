@@ -1,6 +1,6 @@
 # EV Charging uc2 — Settlement-first Design
 
-Status: **draft for review** (planning phase)
+Status: **implemented** — all seven Arazzo workflows pass; 31 OPA unit tests pass.
 
 This use case turns the ideas in [Thoughts on an interoperable EV charging network](https://ameetdesh.blogspot.com/2026/09/thoughts-on-interoperable-ev-charging.html) and its [technical blueprint](https://github.com/ameetdesh/ameetdesh.github.io/blob/main/writeups/ideas-to-improve-ev-charging-network.md) into a runnable devkit on Beckn v2.0 LTS and the latest `onix-adapter-deg`. It keeps the blueprint's core claims and simplifies the wire model wherever a simpler shape says the same thing.
 
@@ -13,7 +13,7 @@ One scarce resource, the **charger-minute**, is sold under two contract modes th
 | `WALK_IN` | A place in the queue, starting now | FIFO assignment, a grace period, demotion by one slot (not to the back) |
 | `RESERVATION` | A start time, booked ahead, for a fee | Stall ready by the reserved start (within grace), or the fee is refunded and delay is credited |
 
-After the session, a **checksummed contract policy** (rego) computes the invoice from the session ledger alone, on both sides of the wire. A **network policy** rejects malformed ledgers and rule-breaking requests (for example, a reservation made less than 60 minutes ahead) with a NACK.
+After the session, a **shared contract policy** (rego), referenced from the contract itself, computes the invoice from the session ledger alone, on both sides of the wire. A **network policy** rejects malformed ledgers and rule-breaking requests (for example, a reservation made less than 60 minutes ahead) with a NACK.
 
 In scope: discovery, quote, booking, virtual queue with demotion, session ledger, settlement for both modes, reservation cancellation, grid (DR) derates as an attributed cause.
 
@@ -41,7 +41,7 @@ Settlement is between these two roles. The grid is a *cause* named in the ledger
 
 | Beckn slot | Schema (`@type`) | Written by | Carries |
 |---|---|---|---|
-| `catalog.resources[].resourceAttributes` | [EvChargingService v2.0](../../../specification/schema/EvChargingService/v2.0/) (`ChargingService`), reused unchanged | CPO | A **charging pool**: site × connector × power class. Individual stalls are assigned later. |
+| `catalog.resources[].resourceAttributes` | [EvChargingService v2.0](../../../specification/schema/EvChargingService/v2.0/) (`ChargingService`), reused; resolved from this fork, whose copy has a corrected `Location` `$ref` (§12) | CPO | A **charging pool**: site × connector × power class. Individual stalls are assigned later. |
 | `catalog.offers[].offerAttributes` | **EvChargingOffer v3.0** (`ChargingOffer`), new | CPO | `mode`, `terms`, `contractAttributes` template |
 | `contract.contractAttributes` | [DEGContract v2.0](../../../specification/schema/DEGContract/v2.0/), reused | copied from offer | roles + policy reference |
 | `commitments[].resources[].quantity` | core | driver | energy needed, kWh |
@@ -159,7 +159,7 @@ stateDiagram-v2
 |---|---|---|
 | `catalog/publish` | — | pools (`resources`) + offers (`mode`, `terms`, `contractAttributes` with `driver` unbound) |
 | `discover` | jsonpath filter, e.g. connector + mode | catalog |
-| `select` | **copy** the chosen offer verbatim into `commitments[0].offer`; one pool into `resources[0]` with `quantity` in kWh; **add** `commitmentAttributes.vehicle` (+ `reservedStart`); **copy** `offer.offerAttributes.contractAttributes` to `contract.contractAttributes` and bind `driver` to your subscriber id | the same contract + `commitmentAttributes.quote` |
+| `select` | **copy** the chosen offer verbatim into `commitments[0].offer`; reference the pool as `resources[0] = {id, quantity: {unitCode: KWH, unitQuantity}}`; **add** `commitmentAttributes.vehicle` (+ `reservedStart`); **copy** `offer.offerAttributes.contractAttributes` to `contract.contractAttributes` and bind `driver` to your subscriber id | the same contract + `commitmentAttributes.quote` |
 | `init` | **copy** the `on_select` contract unchanged (payment/billing would attach here; uc2 carries none) | the same contract (terms now final) |
 | `confirm` | **copy** the `on_init` contract unchanged | `contract.id`, status `ACTIVE`, `performance[0]` with `ledger: [QUEUED]` |
 | `on_status` (push) | — | contract with the ledger extended by new rows; settlement injected once the ledger is terminal |
@@ -273,8 +273,9 @@ devkits/ev-charging/uc2-ev-charging/
   README.md  DESIGN.md
   config/      onix bap/bpp, 4 routing files, opa-network-policies.yaml
   install/     docker-compose.yml (project name ev-charging-uc2), Caddyfile, ngrok.yml.example
-  examples/    <action>-request-*.json, on-<action>-response-*.json, publish-catalog*.json
-  responses/bpp/  sandbox fixtures (on_select, on_init, on_confirm, on_status, on_cancel)
+  examples/    <action>-request-*.json, on-<action>-response-*.json, publish-catalog.json
+  responses/bpp/  sandbox fixtures (on_select, on_init, on_confirm, on_cancel)
+  scripts/     build_examples.py — generates examples + fixtures from one set of scenario facts
   postman/     generate.sh, substitutions.yaml, BAP + BPP collections
   workflows/   ev-charging-uc2.arazzo.yaml, run-arazzo.sh
 specification/schema/{EvChargingOffer/v3.0, EvChargingCommitment/v1.0, EvChargingSession/v3.0}
@@ -294,6 +295,8 @@ Arazzo workflows:
 | `early-no-show` | on_status `NO_SHOW` after 1 of 2 demotions | **400 NACK** from contract policy C2 |
 
 The sandbox serves one fixture per action, so `select`/`init`/`confirm` round-trips run for the reservation flow only. Walk-in `select`/`init`/`confirm` requests still ship as examples and in Postman.
+
+Examples are generated by `scripts/build_examples.py`, which builds each step from the previous one by the copy rules in §6, so the flow cannot drift. Postman collections keep the scenario's literal timestamps because N3 compares `reservedStart` with `context.timestamp`.
 
 ## 10. Deliberate detours from the blueprint
 
@@ -321,3 +324,9 @@ Each is additive: a new terms key, ledger field, or rule, with no change to the 
 - **Anti-gaming**: a vehicle identity on the commitment plus a stateful network service enforcing one live claim per vehicle. Per-aggregator cancellation rates gate admission.
 - **Payment**: reservation fee escrow in `contract.settlements[]`, netted against the injected flows.
 - **Policy pinning**: DeDi record + checksum, as in wave2.
+
+## 12. Implementation notes
+
+- **EvChargingService v2.0 `$ref` fix.** `chargingStation.serviceLocation` referenced the bare `https://schema.nfh.global/Location/v2.0` URL, which answers with a 301 HTML page. The LTS schema validator therefore could not load the schema at all. The fork corrects it to the `Location/v2.0/attributes.yaml#/components/schemas/Location` form other DEG schemas use. This is a metadata-only change: every payload valid before stays valid.
+- **Expected NACKs in the Arazzo runner.** `devkits/scripts/run-arazzo-lib.sh` reports a step whose `successCriteria` expects `$statusCode == 4xx`, and passes, as an expected NACK instead of a failure. This lets negative-path workflows (N3, C2) run in the same suite.
+- **Recompute on the driver side.** The BAP receiver's injection overwrites the CPO's `consideration[id=settlement]` with its own evaluation of the same policy. Identical inputs give identical flows, so in the normal case nothing changes. A detected mismatch would be a natural extension (compare, then NACK).

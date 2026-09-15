@@ -73,7 +73,7 @@ modules:
               uuidKeys: transaction_id,message_id
               role: bap
         steps:
-          # The driver side recomputes the invoice: the checksummed contract
+          # The driver side recomputes the invoice: the shared contract
           # policy is evaluated again on every inbound on_status / on_cancel and
           # its revenue flows overwrite the CPO's copy. Enforcement rejects any
           # response whose terms or ledger break the contract (C1–C3).

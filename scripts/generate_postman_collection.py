@@ -461,6 +461,7 @@ _FORCE_ELEMENT_KEYS = {
     "roles",
     "participants",
     "revenueFlows",
+    "ledger",
 }
 
 

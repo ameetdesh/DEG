@@ -119,7 +119,7 @@ workflows:
           payload:
             $ref: "../examples/on-status-response-walk-in-settled.json"
 
-  # ── Reservation cancelled inside the free-cancellation window ──
+  # ── Reservation cancelled after the free-cancellation window closed ──
 
   - workflowId: reservation-cancellation
     summary: Driver cancels 30 min before the reserved start; the 100.00 INR fee is forfeited

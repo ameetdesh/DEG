@@ -24,7 +24,7 @@ RAW = "https://raw.githubusercontent.com/ameetdesh/DEG/refs/heads/main/specifica
 NFH = "https://schema.nfh.global"
 
 CTX = {
-    "service": f"{NFH}/EvChargingService/v2.0/context.jsonld",
+    "service": f"{RAW}/schema/EvChargingService/v2.0/context.jsonld",
     "offer": f"{RAW}/schema/EvChargingOffer/v3.0/context.jsonld",
     "commitment": f"{RAW}/schema/EvChargingCommitment/v1.0/context.jsonld",
     "session": f"{RAW}/schema/EvChargingSession/v3.0/context.jsonld",

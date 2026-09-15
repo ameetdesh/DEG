@@ -9,7 +9,7 @@
     "messageId": "0a1b2c3d-4e5f-4a6b-8c7d-000000000001",
     "timestamp": "2026-10-01T06:00:00Z",
     "schemaContext": [
-      "https://schema.nfh.global/EvChargingService/v2.0/context.jsonld",
+      "https://raw.githubusercontent.com/ameetdesh/DEG/refs/heads/main/specification/schema/EvChargingService/v2.0/context.jsonld",
       "https://raw.githubusercontent.com/ameetdesh/DEG/refs/heads/main/specification/schema/EvChargingOffer/v3.0/context.jsonld",
       "https://schema.nfh.global/DEGContract/v2.0/context.jsonld"
     ]
@@ -28,7 +28,7 @@
             "id": "ecopower-btm-ccs2-dc60",
             "descriptor": {"name": "BTM Hub · CCS2 DC up to 60 kW", "shortDesc": "4 stalls, one virtual queue"},
             "resourceAttributes": {
-              "@context": "https://schema.nfh.global/EvChargingService/v2.0/context.jsonld",
+              "@context": "https://raw.githubusercontent.com/ameetdesh/DEG/refs/heads/main/specification/schema/EvChargingService/v2.0/context.jsonld",
               "@type": "ChargingService",
               "connectorType": "CCS2",
               "maxPowerKW": 60,
